@@ -3,3 +3,9 @@ flake8-bugbear
 black
 isort
 pre-commit
+sanic
+torch
+torchvision
+torchaudio
+Pillow
+numpy
