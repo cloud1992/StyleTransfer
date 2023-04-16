@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Style Transfer</title>
+</head>
+
+<body>
+    <h1>Style Transfer</h1>
+    <form action="/process" method="post" enctype="multipart/form-data">
+        <label for="content_image">Select an image to upload:</label>
+        <input type="file" id="content_image" name="content_image"><br><br>
+        <label for="style_image">Select a style image to upload:</label>
+        <input type="file" id="style_image" name="style_image"><br><br>
+        <input type="submit" value="Upload and Process">
+    </form>
+</body>
+
+</html>
