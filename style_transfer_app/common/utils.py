@@ -1,77 +1,83 @@
-import numpy as np
+import logging
+
 import torch
+import torch.nn as nn
+import torchvision.models as models
 import torchvision.transforms as transforms
-from PIL import Image
+from torchvision.utils import save_image
 
-
-# Función para cargar las imágenes
-def load_image(image_path):
-    img = Image.open(image_path)
-    transform = transforms.Compose(
-        [
-            transforms.Resize(224),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-    img = transform(img).unsqueeze(0)
-    return img
-
-
-# Función para guardar la imagen procesada
-def save_image(img, output_path):
-    img = img.squeeze(0).detach().numpy()
-    img = img.transpose(1, 2, 0)
-    img = (img * [0.229, 0.224, 0.225]) + [0.485, 0.456, 0.406]
-    img = np.clip(img, 0, 1) * 255
-    img = img.astype("uint8")
-    Image.fromarray(img).save(output_path)
+logging.basicConfig(level=logging.INFO)
 
 
 # Función para aplicar style transfer
-def apply_style_transfer(content_path, style_path, output_path):
+def apply_style_transfer(original_img, style_img):
+    model = models.vgg19(pretrained=True).features
+
+    class VGG(nn.Module):
+        def __init__(self):
+            super(VGG, self).__init__()
+            self.select = ["0", "5", "10", "19", "28"]
+            self.vgg = model
+
+        def forward(self, x):
+            features = []
+            for name, layer in self.vgg._modules.items():
+                x = layer(x)
+                if name in self.select:
+                    features.append(x)
+            return features
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    image_size = 356
+    loader = transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),  # scale imported image
+            transforms.ToTensor(),  # transform it into a torch tensor
+            # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])  # normalize it
+        ]
+    )
 
-    # Cargar las imágenes
-    # content_image = load_image(content_path).to(device)
-    # style_image = load_image(style_path).to(device)
-    # input_image = content_image.clone().to(device).requires_grad_(True)
+    def load_image(image):
+        image = loader(image).unsqueeze(0)
+        return image.to(device)
 
-    # Cargar el modelo de red neuronal
-    cnn = torch.hub.load("pytorch/vision:v0.6.0", "vgg19", pretrained=True).features.to(device).eval()
-    cnn_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).to(device)
-    cnn_normalization_std = torch.tensor([0.229, 0.224, 0.225]).to(device)
+    original_img = load_image(original_img)
+    style_img = load_image(style_img)
 
-    # Definir las capas de contenido y estilo
-    content_layers = ["conv4_2"]
-    style_layers = ["conv1_1", "conv2_1", "conv3_1", "conv4_1", "conv5_1"]
+    model = VGG().to(device).eval()
 
-    # Calcular las matrices de estilo y contenido
-    content_features = {}
-    style_features = {}
+    generated = original_img.clone().requires_grad_(True)
+    # Hyperparameters
+    total_steps = 5000
+    learning_rate = 0.001
+    alpha = 1
+    beta = 0.01
+    optimizer = torch.optim.Adam([generated], lr=learning_rate)
 
-    def get_features(module, input, output):
-        if isinstance(module, torch.nn.Conv2d):
-            name = f"conv{module.bias.numel()}"
-            if name in content_layers:
-                content_features[name] = output.detach()
-            if name in style_layers:
-                style_gram = torch.nn.functional.conv2d(output, output, groups=output.shape[1])
-                style_features[name] = style_gram.detach()
+    # training
+    for step in range(total_steps):
+        generated_features = model(generated)
+        original_img_features = model(original_img)
+        style_features = model(style_img)
 
-    cnn.register_forward_hook(get_features)
+        style_loss = original_loss = 0
 
-    # Normalizar las imágenes de entrada
-    def normalize(image):
-        return (image - cnn_normalization_mean.view(1, -1, 1, 1)) / cnn_normalization_std.view(1, -1, 1, 1)
+        for gen_feature, orig_feature, style_feature in zip(generated_features, original_img_features, style_features):
+            batch_size, channel, height, width = gen_feature.shape
+            original_loss += torch.mean((gen_feature - orig_feature) ** 2)
 
-    # Definir la función de pérdida
-    def content_loss(input_features, target_features):
-        return torch.mean((input_features - target_features) ** 2)
+            # compute gram matrix
+            G = gen_feature.view(channel, height * width).mm(gen_feature.view(channel, height * width).t())
+            A = style_feature.view(channel, height * width).mm(style_feature.view(channel, height * width).t())
 
-    def style_loss(input_gram, target_gram):
-        _, c, h, w = input_gram.shape
-        # input_features = input_gram.view(c, h * w)
-        # target_features = target_gram.view(c, h * w)
-        # gram_input = torch.mm
+            style_loss += torch.mean((G - A) ** 2)
+
+        total_loss = alpha * original_loss + beta * style_loss
+        optimizer.zero_grad()
+        total_loss.backward()
+        optimizer.step()
+
+        if step % 5 == 0:
+            print(total_loss)
+            save_image(generated, "tmp/" + str(step) + ".jpg")
+        print(step)

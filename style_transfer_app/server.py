@@ -1,8 +1,14 @@
+import io
+import logging
+import os
+
+import numpy as np
+from common.utils import apply_style_transfer
+from PIL import Image
 from sanic import Sanic, response
-from sanic.exceptions import abort
+from sanic.exceptions import HTTPException
 
-from .common.utils import apply_style_transfer
-
+logging.basicConfig(level=logging.INFO)
 app = Sanic(__name__)
 
 
@@ -14,25 +20,45 @@ async def handle_request(request):
             html_content = f.read()
         return response.html(html_content)
     except FileNotFoundError:
-        abort(404)
+        HTTPException("Página no encontrada")
 
 
 # Función para procesar la imagen y aplicar el estilo
-@app.post("/process_image")
-async def process_image(request):
+@app.post("/process")
+async def process(request):
     # Obtener las imágenes del formulario
     content_image = request.files.get("content_image")
     style_image = request.files.get("style_image")
 
+    # content_image_name = content_image.name
+    # style_image_name = style_image.name
+
+    content_image = content_image.body
+    style_image = style_image.body
+
+    # Abrir la imagen usando PIL
+    pil_style_image = Image.open(io.BytesIO(style_image))
+    pil_content_image = Image.open(io.BytesIO(content_image))
+
+    # Convertir la imagen PIL a un array de NumPy
+    np_image = np.array(pil_style_image)
+    np_content_image = np.array(pil_content_image)
+    logging.info(f"Content image type: {type(np_image)}")
+    logging.info(f"Content image type: {type(np_content_image)}")
+
     # Guardar las imágenes en el servidor
-    content_path = "/tmp/content.jpg"
-    style_path = "/tmp/style.jpg"
-    content_image.save(content_path)
-    style_image.save(style_path)
+    content_path = os.path.join("tmp", "content.jpg")
+    style_path = os.path.join("tmp", "style.jpg")
+    pil_content_image.save(content_path)
+    pil_style_image.save(style_path)
 
     # Aplicar style transfer
-    output_path = "/tmp/output.jpg"
-    apply_style_transfer(content_path, style_path, output_path)
+    apply_style_transfer(pil_content_image, pil_style_image)
 
     # Devolver la imagen procesada al usuario
-    return await response.file(output_path, filename="output.jpg")
+    return response.text("todo ok11")
+    # return await response.file(output_path, filename="output.jpg")
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=True)
