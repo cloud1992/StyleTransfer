@@ -1,4 +1,7 @@
 #!/bin/bash
 pwd
 ls
-python3 deployment-root/style_transfer_app/server.py
+cd deployment-root
+pwd
+ls
+python3 style_transfer_app/server.py
