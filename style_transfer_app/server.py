@@ -23,7 +23,7 @@ async def handle_request(request):
             html_content = f.read()
         return response.html(html_content)
     except FileNotFoundError:
-        HTTPException("Página no encontrada")
+        HTTPException("Página no encontradaa")
         return response.text("Página no encontrada")
 
 
