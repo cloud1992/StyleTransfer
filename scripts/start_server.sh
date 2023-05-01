@@ -1,5 +1,5 @@
 #!/bin/bash
 cd /home/ubuntu
-pwd
-ls
-nohup python3 style_transfer_app/server.py > log.out
+cd style_transfer_app
+sanic server:app &
+#python3 style_transfer_app/server.py > log.out
