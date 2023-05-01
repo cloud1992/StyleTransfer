@@ -19,14 +19,11 @@ app = Sanic(__name__)
 @app.get("/")
 async def handle_request(request):
     try:
-        with open("static/index.html", "r") as f:
+        with open("style_transfer_app/static/index.html", "r") as f:
             html_content = f.read()
         return response.html(html_content)
     except FileNotFoundError:
         HTTPException("Página no encontrada")
-        with open("static/index.html", "r") as f:
-            html_content = f.read()
-            print(html_content)
         return response.text("Página no encontrada")
 
 
