@@ -24,6 +24,7 @@ async def handle_request(request):
         return response.html(html_content)
     except FileNotFoundError:
         HTTPException("Página no encontrada")
+        return response.text("Página no encontrada")
 
 
 # Función para procesar la imagen y aplicar el estilo
